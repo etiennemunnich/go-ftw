@@ -33,8 +33,12 @@ func checkFiles(dir string) error {
 	files := fmt.Sprintf("%s/**/*.yaml", dir)
 	log.Trace().Msgf("ftw/check: checking files using glob pattern: %s", files)
 	tests, err := test.GetTestsFromFiles(files)
-	if err == nil {
-		fmt.Printf("ftw/check: checked %d files, everything looks good!\n", len(tests))
+	if err != nil {
+		return err
 	}
-	return err
+	if err := test.ValidateTestsHeaders(tests); err != nil {
+		return err
+	}
+	fmt.Printf("ftw/check: checked %d files, everything looks good!\n", len(tests))
+	return nil
 }

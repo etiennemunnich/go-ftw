@@ -88,10 +88,30 @@ func (s *headerTestSuite) TestWrite() {
 	}
 }
 
-func (s *headerTestSuite) TestWriteRejectsCRLFInValue() {
+func (s *headerTestSuite) TestValidateNoCRLFInValue() {
 	// A YAML block scalar (`|`) silently appends a trailing "\n" to a header
 	// value. Left unchecked, this breaks header framing on the wire instead
 	// of producing a visible error (see coreruleset/go-ftw#662).
+	h := NewHeaderWithEntries([]*HeaderTuple{
+		{"X-Test", "value\n"},
+	})
+	s.Error(h.ValidateNoCRLF())
+}
+
+func (s *headerTestSuite) TestValidateNoCRLFInName() {
+	h := NewHeaderWithEntries([]*HeaderTuple{
+		{"X-Test\r\nInjected", "value"},
+	})
+	s.Error(h.ValidateNoCRLF())
+}
+
+func (s *headerTestSuite) TestValidateNoCRLFNilAndClean() {
+	s.NoError((*Header)(nil).ValidateNoCRLF())
+	s.NoError(NewHeader().ValidateNoCRLF())
+	s.NoError(NewHeaderWithEntries([]*HeaderTuple{{"Host", "localhost"}}).ValidateNoCRLF())
+}
+
+func (s *headerTestSuite) TestWriteRejectsCRLFInValue() {
 	h := NewHeaderWithEntries([]*HeaderTuple{
 		{"X-Test", "value\n"},
 	})
