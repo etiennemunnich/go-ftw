@@ -107,14 +107,30 @@ func (h *Header) GetAll(name string) []HeaderTuple {
 	return h.getAll(canonicalKey(name), canonicalKey)
 }
 
-// Write writes the header to the provided writer
-func (h *Header) Write(writer io.Writer) error {
-	buf := bufio.NewWriter(writer)
-	for index, tuple := range h.entries {
+// ValidateNoCRLF reports an error if any header name or value contains a raw
+// CR or LF character. Such characters break HTTP/1.x header framing on the
+// wire; intentional control characters must be sent via encoded_request or
+// encoded_data instead.
+func (h *Header) ValidateNoCRLF() error {
+	if h == nil {
+		return nil
+	}
+	for _, tuple := range h.entries {
 		if strings.ContainsAny(tuple.Name, "\r\n") || strings.ContainsAny(tuple.Value, "\r\n") {
 			return fmt.Errorf("header %q contains a raw CR or LF character, which would corrupt the request; "+
 				"use 'encoded_request' or 'encoded_data' to send control characters intentionally", tuple.Name)
 		}
+	}
+	return nil
+}
+
+// Write writes the header to the provided writer
+func (h *Header) Write(writer io.Writer) error {
+	if err := h.ValidateNoCRLF(); err != nil {
+		return err
+	}
+	buf := bufio.NewWriter(writer)
+	for index, tuple := range h.entries {
 		if log.Trace().Enabled() {
 			log.Trace().Msgf("Writing header %d: %s: %s", index, tuple.Name, tuple.Value)
 		}
