@@ -74,3 +74,39 @@ func (s *checkCmdTestSuite) TestCheckCommand() {
 	s.Require().NoError(err, "check command should not return an error")
 	s.Equal("check", cmd.Name(), "check command should have the name 'check'")
 }
+
+func (s *checkCmdTestSuite) TestCheckCommandRejectsHeaderCRLF() {
+	// Follow-up from coreruleset/go-ftw#682 / #662: ftw check used to accept
+	// files that ftw run would reject when building the request.
+	badContents := `---
+meta:
+  author: "go-ftw"
+  description: "block scalar appends trailing LF"
+tests:
+  - test_id: 10
+    stages:
+      - input:
+          dest_addr: "127.0.0.1"
+          method: "GET"
+          port: 1234
+          headers:
+            Host: "localhost"
+            User-Agent: |
+              OWASP CRS test agent
+          protocol: "http"
+          uri: "/"
+          version: "HTTP/1.1"
+        output:
+          status: 200
+`
+	badFile, err := os.CreateTemp(s.tempDir, "mock-bad-*.yaml")
+	s.Require().NoError(err)
+	_, err = badFile.WriteString(badContents)
+	s.Require().NoError(err)
+	s.Require().NoError(badFile.Close())
+
+	s.cmd.SetArgs([]string{"check", "-d", s.tempDir})
+	_, err = s.cmd.ExecuteContextC(context.Background())
+	s.Require().Error(err)
+	s.Contains(err.Error(), "CR or LF")
+}
